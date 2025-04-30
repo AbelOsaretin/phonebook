@@ -1,30 +1,33 @@
+require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
+const Phonebook = require("./models/phonebook");
+const { default: mongoose } = require("mongoose");
 
 const app = express();
 
-let persons = [
-  {
-    id: "1",
-    name: "Arto Hellas",
-    number: "040-123456",
-  },
-  {
-    id: "2",
-    name: "Ada Lovelace",
-    number: "39-44-5323523",
-  },
-  {
-    id: "3",
-    name: "Dan Abramov",
-    number: "12-43-234345",
-  },
-  {
-    id: "4",
-    name: "Mary Poppendieck",
-    number: "39-23-6423122",
-  },
-];
+// let persons = [
+//   {
+//     id: "1",
+//     name: "Arto Hellas",
+//     number: "040-123456",
+//   },
+//   {
+//     id: "2",
+//     name: "Ada Lovelace",
+//     number: "39-44-5323523",
+//   },
+//   {
+//     id: "3",
+//     name: "Dan Abramov",
+//     number: "12-43-234345",
+//   },
+//   {
+//     id: "4",
+//     name: "Mary Poppendieck",
+//     number: "39-23-6423122",
+//   },
+// ];
 
 // const requestLogger = (request, response, next) => {
 //   console.log("Method:", request.method);
@@ -48,69 +51,130 @@ app.use(
 app.get("/info", (request, response) => {
   // console.log("Get Phonebook Info");
   response.send(
-    `<p>Phonebook has info for ${persons.length} people</p><p>${Date()}</p>`
+    `<p>Phonebook has info for ${Phonebook.length} people</p><p>${Date()}</p>`
   );
 });
 
 app.get("/api/persons", (request, response) => {
-  // console.log(response);
-  response.set("Cache-Control", "no-store");
-  response.json(persons);
+  Phonebook.find({}).then((persons) => {
+    console.log(persons);
+    response.json(persons);
+  });
 });
 
-app.get("/api/persons/:id", (request, response) => {
-  // console.log("Get Single Person");
+app.get("/api/persons/:id", (request, response, next) => {
+  console.log("Get Single Person");
   const id = request.params.id;
-  const person = persons.find((person) => person.id === id);
-
-  if (person) {
-    response.json(person);
-  } else {
-    response.status(404).end();
-  }
+  Phonebook.findById(id)
+    .then((person) => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch((error) => {
+      console.log(error);
+      response.status(400).send({ error: "malformatted id" });
+    });
 });
 
-app.delete("/api/persons/:id", (request, response) => {
+app.get("/api/persons/:id", (request, response, next) => {
+  Phonebook.findById(request.params.id)
+    .then((person) => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+
+    .catch((error) => next(error));
+});
+
+app.delete("/api/persons/:id", (request, response, next) => {
   const id = request.params.id;
-  persons = persons.filter((person) => person.id !== id);
-  response.status(204).end();
+  Phonebook.findByIdAndDelete(id)
+    .then((result) => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
   // console.log(`Deleted ID is ${id}`, persons);
 });
 
-const generatedId = () => Math.floor(Math.random() * 1000);
+app.put("/api/persons/:id", (request, response, next) => {
+  const { name, number } = request.body;
 
-app.post("/api/persons", (request, response) => {
+  Phonebook.findById(request.params.id)
+    .then((person) => {
+      if (!person) {
+        return response.status(404).end();
+      }
+
+      person.name = name;
+      person.phoneNumber = number;
+
+      return person.save().then((updatedPerson) => {
+        response.json(updatedPerson);
+      });
+    })
+    .catch((error) => next(error));
+});
+
+app.post("/api/persons", (request, response, next) => {
   const body = request.body;
 
-  if (!body.name || !body.number) {
-    return response.status(400).json({
-      error: "name or number missing",
-    });
-  }
-  if (persons.find((person) => person.name === body.name)) {
-    return response.status(400).json({
-      error: "name must be unique",
-    });
-  }
+  // if (!body.name || !body.number) {
+  //   return response.status(400).json({
+  //     error: "name or number missing",
+  //   });
+  // }
+  // if (Phonebook.find() => person.name === body.name)) {
+  //   return response.status(400).json({
+  //     error: "name must be unique",
+  //   });
+  // }
 
-  const person = {
+  const person = new Phonebook({
     name: body.name,
-    number: body.number,
-    id: generatedId(),
-  };
+    phoneNumber: body.number,
+  });
 
-  persons = persons.concat(person);
+  person
+    .save()
+    .then((savePerson) => {
+      console.log(savePerson);
+      response.json(savePerson);
+    })
+    .catch((error) => next(error));
 
-  response.json(person);
+  // Phonebook = Phonebook.concat(person);
+
+  // response.json(person);
 
   // console.log("Saved ", person);
 });
 
-// const unknownEndpoint = (request, response) => {
-//   response.status(404).send({ error: "unknown endpoint" });
-// };
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
 
-// app.use(unknownEndpoint);
+app.use(unknownEndpoint);
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message });
+  }
+
+  next(error);
+};
+
+// this has to be the last loaded middleware, also all the routes should be registered before this!
+app.use(errorHandler);
 
 const PORT = 3001;
 app.listen(PORT);

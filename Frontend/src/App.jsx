@@ -33,7 +33,7 @@ const App = () => {
     setFilter(event.target.value);
   };
 
-  const handleFormSubmit = (event, name) => {
+  const handleFormSubmit = (event) => {
     event.preventDefault();
 
     const newPersonObj = {
@@ -51,7 +51,7 @@ const App = () => {
 
       if (
         confirm(
-          `${name} is already added to phonebook, replace the old number with the new one?`
+          `${newPersonObj.name} is already added to phonebook, replace the old number with the new one?`
         )
       ) {
         // contactService.updateContactNumber();
@@ -73,17 +73,26 @@ const App = () => {
         console.log("Cancle");
       }
     } else {
-      contactService.addContact(newPersonObj).then((response) => {
-        console.log(response.data);
-        setPersons(persons.concat(newPersonObj));
-        setMessageDesign("success");
-        setMessage(`Added '${newPersonObj.name}'`);
-        setTimeout(() => {
-          setMessage(null);
-        }, 5000);
-        setNewName("");
-        setNewNumber("");
-      });
+      contactService
+        .addContact(newPersonObj)
+        .then((response) => {
+          console.log(response.data);
+          setPersons(persons.concat(newPersonObj));
+          setMessageDesign("success");
+          setMessage(`Added '${newPersonObj.name}'`);
+          setTimeout(() => {
+            setMessage(null);
+          }, 5000);
+          setNewName("");
+          setNewNumber("");
+        })
+        .catch((error) => {
+          setMessageDesign("error");
+          setMessage(error.response.data.error);
+          setTimeout(() => {
+            setMessage(null);
+          }, 5000);
+        });
     }
   };
 

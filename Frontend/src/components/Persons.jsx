@@ -14,9 +14,9 @@ const Persons = ({ filter, persons }) => {
         .then((response) => {
           console.log(response);
         })
-        .catch(() => {
+        .catch((error) => {
           setMessageDesign("error");
-          setMessage(`'${name}' Already Deleted`);
+          setMessage(error.response.data.error);
           setTimeout(() => {
             setMessage(null);
           }, 5000);
